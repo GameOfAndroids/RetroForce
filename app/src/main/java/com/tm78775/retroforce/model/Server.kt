@@ -6,8 +6,7 @@ data class Server(
     val name: String,
     /** The [endpoint] should end with NO forward slash. */
     val endpoint: String,
-    /** The [refreshTokenEndpoint] should end with a forward slash. */
-    val refreshTokenEndpoint: String,
+    val environment: ServerEnvironment,
     val clientId: String,
     val secret: String,
     val redirectUri: String,
@@ -16,8 +15,9 @@ data class Server(
     init {
         if(endpoint.endsWith('/'))
             throw Exception("The endpoint must not end with a forward slash.")
-
-        if(!refreshTokenEndpoint.endsWith('/'))
-            throw Exception("The refreshTokenEndpoint must end with a forward slash.")
     }
+}
+
+enum class ServerEnvironment {
+    prod, sandbox
 }

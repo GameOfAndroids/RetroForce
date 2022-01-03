@@ -2,6 +2,7 @@ package com.tm78775.retroforce
 
 import android.content.Context
 import android.content.Intent
+import android.os.Looper
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.datastore.core.DataStore
@@ -12,10 +13,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.lifecycleScope
 import com.google.gson.Gson
 import com.tm78775.retroforce.login.LoginActivity
-import com.tm78775.retroforce.model.AuthToken
-import com.tm78775.retroforce.model.AuthTokenParser
-import com.tm78775.retroforce.model.SalesforceCommunityTokenParser
-import com.tm78775.retroforce.model.Server
+import com.tm78775.retroforce.model.*
 import com.tm78775.retroforce.service.RetroFactory
 import com.tm78775.retroforce.service.SessionRefreshService
 import kotlinx.coroutines.Dispatchers
@@ -61,13 +59,19 @@ abstract class RetroForceActivity : ComponentActivity() {
     /**
      * Call this method to start the login activity. This will be launched on the main thread.
      */
-    protected fun startLoginActivity() = lifecycleScope.launch(Dispatchers.Main) {
-        Intent(this@RetroForceActivity, LoginActivity::class.java).apply {
-            putExtra("server", getServer())
-            putExtra("token_parser", getAuthTokenParser())
-        }.also {
-            startActivity(it)
-            overridePendingTransition(R.anim.slide_up, R.anim.stay)
+    protected fun startLoginActivity() {
+        if(Looper.myLooper() != Looper.getMainLooper()) {
+            lifecycleScope.launch(Dispatchers.Main) {
+                this@RetroForceActivity.startLoginActivity()
+            }
+        } else {
+            Intent(this@RetroForceActivity, LoginActivity::class.java).apply {
+                putExtra("server", getServer())
+                putExtra("token_parser", getAuthTokenParser())
+            }.also {
+                startActivity(it)
+                overridePendingTransition(R.anim.slide_up, R.anim.stay)
+            }
         }
     }
 
@@ -79,7 +83,7 @@ abstract class RetroForceActivity : ComponentActivity() {
         getAuthToken()?.let { token ->
             getServer().also {
                 val refreshService = RetroFactory.createService(
-                    it.refreshTokenEndpoint,
+                    getRefreshServer(it.environment),
                     SessionRefreshService::class.java
                 )
 
@@ -106,10 +110,22 @@ abstract class RetroForceActivity : ComponentActivity() {
 
                 } catch (uhe: UnknownHostException) {
                     Log.d(this.toString(), "RetroForce is unable to reach the host " +
-                            "at ${it.refreshTokenEndpoint}. Do you have a data connection?")
+                            "at ${getRefreshServer(it.environment)}. Do you have a data connection?")
                     throw uhe
                 }
             }
+        }
+    }
+
+    /**
+     * Helper method to get the token refresh endpoint.
+     * @param environment The [ServerEnvironment] the user is working on.
+     * @return The endpoint in String format.
+     */
+    private fun getRefreshServer(environment: ServerEnvironment): String {
+        return when(environment) {
+            ServerEnvironment.prod -> "https://login.salesforce.com/"
+            ServerEnvironment.sandbox -> "https://test.salesforce.com/"
         }
     }
 
