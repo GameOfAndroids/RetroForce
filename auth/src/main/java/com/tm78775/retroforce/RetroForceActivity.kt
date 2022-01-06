@@ -93,6 +93,7 @@ abstract class RetroForceActivity : ComponentActivity() {
      */
     protected suspend fun logout() {
         viewModel.logout(getServer())
+        startLoginActivity()
     }
 
     /**

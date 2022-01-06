@@ -20,6 +20,8 @@ internal interface SessionService {
     @POST("/services/oauth2/revoke")
     suspend fun logout(
         @Field("token") accessToken: String
-    ): Response<String>
+    ): Response<Void>
+
+
 
 }
