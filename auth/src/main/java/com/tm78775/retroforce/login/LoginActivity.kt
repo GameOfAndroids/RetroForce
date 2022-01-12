@@ -31,6 +31,7 @@ internal class LoginActivity : ComponentActivity() {
     private lateinit var server: Server
     private lateinit var tokenParser: AuthTokenParser
 
+    @Suppress("UNCHECKED_CAST")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         server = intent?.extras?.getSerializable("server") as Server

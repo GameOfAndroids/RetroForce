@@ -4,5 +4,6 @@ import java.io.Serializable
 
 interface AuthTokenParser : Serializable {
     fun isRedirectUriDetected(server: Server, url: String): Boolean
-    fun <T> parseAuthToken(url: String): T
+    fun parseAuthToken(url: String): AuthToken
+    fun parseRefreshToken(token: AuthToken, response: RefreshTokenResponse): AuthToken
 }

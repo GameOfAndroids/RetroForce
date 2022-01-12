@@ -1,15 +1,16 @@
-package com.tm78775.retroforce.model
+package com.tm78775.retroforce.service
 
 import android.webkit.URLUtil
+import com.tm78775.retroforce.model.*
 import java.nio.charset.StandardCharsets
 
 class SalesforceCommunityTokenParser : AuthTokenParser {
+
     override fun isRedirectUriDetected(server: Server, url: String): Boolean {
         return url.startsWith(server.redirectUri)
     }
 
-    @Suppress("UNCHECKED_CAST")
-    override fun <AuthToken> parseAuthToken(url: String): AuthToken {
+    override fun parseAuthToken(url: String): AuthToken {
         val tokenVars = hashMapOf<String, String>()
         val redirectUrl = url.substringBefore("#")
         url.substringAfter("#").also { authVars ->
@@ -20,7 +21,7 @@ class SalesforceCommunityTokenParser : AuthTokenParser {
             }
         }
 
-        return AuthToken(
+        return CommunityAuthToken(
             redirectUri = redirectUrl,
             accessToken = tokenVars["access_token"] ?: "",
             refreshToken = tokenVars["refresh_token"] ?: "",
@@ -32,7 +33,19 @@ class SalesforceCommunityTokenParser : AuthTokenParser {
             tokenType = tokenVars["token_type"] ?: "",
             issuedAt = tokenVars["issued_at"] ?: "",
             scope = tokenVars["scope"]?.split('+') ?: listOf()
-        ) as AuthToken
+        )
+    }
+
+    override fun parseRefreshToken(token: AuthToken, response: RefreshTokenResponse): AuthToken {
+        return (token as CommunityAuthToken).apply {
+            accessToken = response.accessToken
+            tokenType = response.tokenType
+            idUrl = response.id
+            issuedAt = response.issuedAt
+            instanceUrl = response.instanceUrl
+            signature = response.signature
+            scope = response.scope.split('+')
+        }
     }
 
     private fun convertHtmlString(html: String): String {

@@ -2,6 +2,7 @@ package com.tm78775.retroforce
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.PersistableBundle
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -9,12 +10,14 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.lifecycleScope
 import com.tm78775.retroforce.login.LoginActivity
 import com.tm78775.retroforce.model.*
-import com.tm78775.retroforce.service.TokenPersistenceService
+import com.tm78775.retroforce.model.AuthTokenParser
+import com.tm78775.retroforce.service.SalesforceCommunityTokenParser
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.UnknownHostException
+import javax.inject.Inject
 
 /**
  * Extend this class to enable RetroForce's authentication and session refreshing with Salesforce.
@@ -26,7 +29,6 @@ import java.net.UnknownHostException
  * the user's refresh token has been revoked, then RetroForce will prompt the user to
  * login again.
  */
-@AndroidEntryPoint
 abstract class RetroForceActivity : ComponentActivity() {
 
     private val viewModel: AuthViewModel by viewModels()
@@ -36,23 +38,23 @@ abstract class RetroForceActivity : ComponentActivity() {
         if (it.resultCode == RESULT_OK) {
             (it.data?.extras?.getSerializable("token") as? AuthToken)?.also {
                 lifecycleScope.launch(Dispatchers.IO) {
-                    viewModel.userHasLoggedIn(it)
+                    viewModel.onLoginSuccess(it)
                 }
             }
         }
     }
 
-    override fun onResume() {
-        super.onResume()
+    /**
+     * Call this to get a [LiveData] object observing the [AuthToken].
+     */
+    fun getLiveAuthToken(): LiveData<AuthToken> = viewModel.liveAuthToken
+
+    override fun onCreate(savedInstanceState: Bundle?, persistentState: PersistableBundle?) {
+        super.onCreate(savedInstanceState, persistentState)
         // todo: test token to ensure it doesn't need refreshing.
         // todo: refresh token if it does need to be refreshed.
         // todo: if refreshing token results in unauthorized response, re-authenticate.
     }
-
-    /**
-     * Call this to get a [LiveData] object observing the [AuthToken].
-     */
-    fun getAuthTokenObserver(): LiveData<AuthToken> = viewModel.liveAuthToken
 
     /**
      * When this method is invoked, return the [AuthTokenParser] necessary for your
@@ -60,7 +62,10 @@ abstract class RetroForceActivity : ComponentActivity() {
      * @return The parser that will be used to extract [AuthToken] data from the returned
      * url at login time.
      */
-    abstract fun getAuthTokenParser(): AuthTokenParser
+    @Suppress("UNCHECKED_CAST")
+    open fun getAuthTokenParser(): AuthTokenParser {
+        return SalesforceCommunityTokenParser()
+    }
 
     /**
      * When this method is invoked, return the server to which you wish to connect.
@@ -109,7 +114,7 @@ abstract class RetroForceActivity : ComponentActivity() {
                 putExtra("token_parser", getAuthTokenParser())
             }
         )
-        overridePendingTransition(R.anim.slide_up, R.anim.stay)
+        overridePendingTransition(R.anim.slide_up, R.anim.zoom_out)
     }
 
     /**
@@ -118,11 +123,11 @@ abstract class RetroForceActivity : ComponentActivity() {
     @Throws
     protected suspend fun refreshAuthToken() {
         try {
-            viewModel.refreshSession(getServer())
-        } catch (ua: AuthViewModel.UnauthenticatedException) {
+            viewModel.refreshSession(getServer(), getAuthTokenParser())
+        } catch (ua: UnauthenticatedException) {
             // No token was found in the persisted store. Re-authenticate.
             startLoginActivity()
-        } catch (re: AuthViewModel.RefreshException) {
+        } catch (re: RefreshException) {
             // The refresh token is likely no longer valid. Re-authenticate.
             startLoginActivity()
         } catch (uhe: UnknownHostException) {

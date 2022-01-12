@@ -1,8 +1,8 @@
-package com.tm78775.retroforce.service
+package com.tm78775.retroforce.model
 
 import com.google.gson.annotations.SerializedName
 
-internal data class RefreshTokenResponse(
+data class RefreshTokenResponse(
     @SerializedName("id") val id : String,
     @SerializedName("issued_at") val issuedAt : String,
     @SerializedName("instance_url") val instanceUrl : String,

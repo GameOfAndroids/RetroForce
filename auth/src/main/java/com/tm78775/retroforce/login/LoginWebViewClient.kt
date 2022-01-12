@@ -17,7 +17,7 @@ internal class LoginWebViewClient(
 
         url?.let {
             if(tokenParser.isRedirectUriDetected(server, it)) {
-                val token = tokenParser.parseAuthToken<AuthToken>(it)
+                val token = tokenParser.parseAuthToken(it)
                 onTokenParsed(token)
                 view?.stopLoading()
             }

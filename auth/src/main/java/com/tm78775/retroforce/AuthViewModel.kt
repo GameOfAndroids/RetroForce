@@ -3,23 +3,18 @@ package com.tm78775.retroforce
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.*
-import com.tm78775.retroforce.model.AuthToken
-import com.tm78775.retroforce.model.Server
-import com.tm78775.retroforce.model.ServerEnvironment
+import com.tm78775.retroforce.model.*
 import com.tm78775.retroforce.service.RetroFactory
 import com.tm78775.retroforce.service.SessionService
 import com.tm78775.retroforce.service.TokenPersistenceService
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.lang.StringBuilder
 import java.net.UnknownHostException
 import javax.inject.Inject
 
-@HiltViewModel
-internal class AuthViewModel @Inject constructor(
-    private val app: Application
+class AuthViewModel @Inject constructor(
+    private val app: Application,
 ) : AndroidViewModel(app) {
 
     private val authPath = "/services/oauth2/authorize"
@@ -75,8 +70,9 @@ internal class AuthViewModel @Inject constructor(
      * @throws RefreshException in the event that a refresh attempt did not return
      * a code of 200.
      */
+    @Suppress("UNCHECKED_CAST")
     @Throws
-    suspend fun refreshSession(server: Server) {
+    suspend fun refreshSession(server: Server, tokenParser: AuthTokenParser) {
         val token = TokenPersistenceService.getAuthToken(app)
             ?: throw UnauthenticatedException("No auth token was stored. No user is authenticated.")
 
@@ -94,14 +90,8 @@ internal class AuthViewModel @Inject constructor(
 
             if(resp.code() == 200)
                 resp.body()?.let { refreshResp ->
-                    token.accessToken = refreshResp.accessToken
-                    token.issuedAt = refreshResp.issuedAt
-                    token.instanceUrl = refreshResp.instanceUrl
-                    token.signature = refreshResp.signature
-                    token.tokenType = refreshResp.tokenType
-                    token.scope = refreshResp.scope.split(' ')
-                    token.idUrl = refreshResp.id
-                    TokenPersistenceService.saveAuthToken(app, token)
+                    val refreshedToken = tokenParser.parseRefreshToken(token, refreshResp)
+                    TokenPersistenceService.saveAuthToken(app, refreshedToken)
                     _authToken.postValue(token)
                 }
 
@@ -116,15 +106,28 @@ internal class AuthViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Call this to determine if a user has logged in and has not logged out.
+     * @return True if the library has an authenticated user. Otherwise false.
+     */
     suspend fun userIsAuthenticated(): Boolean {
         return TokenPersistenceService.getAuthToken(app) != null
     }
 
-    suspend fun userHasLoggedIn(token: AuthToken) {
+    /**
+     * Call this method when the user successfully authenticates. This will persist
+     * the auth token.
+     * @param token
+     */
+    suspend fun onLoginSuccess(token: AuthToken) {
         TokenPersistenceService.saveAuthToken(app, token)
         _authToken.postValue(token)
     }
 
+    /**
+     * Call this method to log the user out.
+     * @param server The server instance the app is using.
+     */
     suspend fun logout(server: Server) {
         val token = TokenPersistenceService.getAuthToken(app) ?: return
         val authService = RetroFactory.createService(
@@ -148,8 +151,5 @@ internal class AuthViewModel @Inject constructor(
             ServerEnvironment.Sandbox -> "https://test.salesforce.com/"
         }
     }
-
-    class UnauthenticatedException(val msg: String): Exception()
-    class RefreshException(val msg: String) : Exception()
 
 }
