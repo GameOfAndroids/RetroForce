@@ -19,9 +19,9 @@ internal object TokenPersistenceService {
      * If a user has been authenticated, then call this method to get the end user's [AuthToken].
      * @return The end user's [AuthToken].
      */
-    suspend fun getAuthToken(ctx: Context): AuthToken? {
+    suspend inline fun <reified T : AuthToken> getAuthToken(ctx: Context): T? {
         return readAuthToken(ctx)?.let {
-            Gson().fromJson(it, AuthToken::class.java)
+            Gson().fromJson(it, T::class.java)
         }
     }
 
@@ -29,7 +29,7 @@ internal object TokenPersistenceService {
      * Call this to persist the user's [AuthToken].
      * @param token The [AuthToken] to save for future api calls.
      */
-    suspend fun saveAuthToken(ctx: Context, token: AuthToken?) {
+    suspend fun <T : AuthToken> saveAuthToken(ctx: Context, token: T?) {
         val gsonToken = Gson().toJson(token)
         val k = stringPreferencesKey("token")
         ctx.dataStore.edit {

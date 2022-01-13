@@ -1,5 +1,6 @@
 package com.tm78775.retroforce.model
 
+import com.tm78775.retroforce.service.RefreshTokenResponse
 import java.io.Serializable
 
 interface AuthTokenParser : Serializable {

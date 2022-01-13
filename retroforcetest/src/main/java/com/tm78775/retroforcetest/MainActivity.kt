@@ -7,7 +7,7 @@ import com.tm78775.retroforce.model.ServerEnvironment
 
 class MainActivity : RetroForceActivity() {
 
-    override fun getServer() = TODO("Enter Server Info Here.")
+    override fun getServer() = TODO("Enter Server info here.")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

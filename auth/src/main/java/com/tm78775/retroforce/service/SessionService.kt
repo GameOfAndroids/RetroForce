@@ -1,6 +1,5 @@
 package com.tm78775.retroforce.service
 
-import com.tm78775.retroforce.model.RefreshTokenResponse
 import retrofit2.Response
 import retrofit2.http.Field
 import retrofit2.http.FormUrlEncoded

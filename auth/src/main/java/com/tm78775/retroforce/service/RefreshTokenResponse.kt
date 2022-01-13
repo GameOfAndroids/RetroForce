@@ -1,4 +1,4 @@
-package com.tm78775.retroforce.model
+package com.tm78775.retroforce.service
 
 import com.google.gson.annotations.SerializedName
 

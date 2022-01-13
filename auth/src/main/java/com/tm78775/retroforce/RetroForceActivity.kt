@@ -3,6 +3,7 @@ package com.tm78775.retroforce
 import android.content.Intent
 import android.os.Bundle
 import android.os.PersistableBundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -11,7 +12,10 @@ import androidx.lifecycle.lifecycleScope
 import com.tm78775.retroforce.login.LoginActivity
 import com.tm78775.retroforce.model.*
 import com.tm78775.retroforce.model.AuthTokenParser
+import com.tm78775.retroforce.service.RefreshException
 import com.tm78775.retroforce.service.SalesforceCommunityTokenParser
+import com.tm78775.retroforce.service.SessionExpiredException
+import com.tm78775.retroforce.service.UnauthenticatedException
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -32,6 +36,9 @@ import javax.inject.Inject
 abstract class RetroForceActivity : ComponentActivity() {
 
     private val viewModel: AuthViewModel by viewModels()
+    private var suppressLogin: Boolean = false
+
+    // Contract to receive data when launching activity for result.
     private val loginContract = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
@@ -49,13 +56,6 @@ abstract class RetroForceActivity : ComponentActivity() {
      */
     fun getLiveAuthToken(): LiveData<AuthToken> = viewModel.liveAuthToken
 
-    override fun onCreate(savedInstanceState: Bundle?, persistentState: PersistableBundle?) {
-        super.onCreate(savedInstanceState, persistentState)
-        // todo: test token to ensure it doesn't need refreshing.
-        // todo: refresh token if it does need to be refreshed.
-        // todo: if refreshing token results in unauthorized response, re-authenticate.
-    }
-
     /**
      * When this method is invoked, return the [AuthTokenParser] necessary for your
      * needs. To use the default parser, please see the [SalesforceCommunityTokenParser].
@@ -68,21 +68,53 @@ abstract class RetroForceActivity : ComponentActivity() {
     }
 
     /**
-     * When this method is invoked, return the server to which you wish to connect.
+     * When this method is invoked, return the server to which you want to connect.
      * @return The [Server] object configured for use in this build.
      */
     abstract fun getServer(): Server
+
+    /**
+     * If this is set to true, the [RetroForceActivity] will not navigate automatically
+     * to the [LoginActivity] if there is no logged in user. This is useful if the child
+     * [ComponentActivity] requires the authentication status, but wants to reserve
+     * Authentication for a later time or in a different UI context. Invoke this in your
+     * [onCreate] method before calling super.[onCreate].
+     * @param suppress True to suppress automatic login. Defaulted to false.
+     */
+    fun suppressLogin(suppress: Boolean) {
+        suppressLogin = suppress
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleScope.launch(Dispatchers.IO) {
             delay(1000)
-            if (!userIsAuthenticated()) {
+            if (!userIsAuthenticated() && !suppressLogin) {
+                Log.d(this::class.simpleName, "There is no authenticated user. Navigating to ${LoginActivity::class.simpleName}")
                 startLoginActivity()
+            } else {
+                performSessionValidation()
             }
         }
     }
 
+    /**
+     * This method will ensure that the end-user's session is still valid. If the session is
+     * invalid, the [RetroForceActivity] will try to refresh the session. If it fails to refresh
+     * the session due to an unauthorized exception, then the user will be navigated to the [LoginActivity].
+     */
+    private fun performSessionValidation() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            Log.d(this::class.simpleName, "Ensuring session is not expired...")
+            try {
+                viewModel.refreshUserProfile(getServer())
+            } catch (see: SessionExpiredException) {
+                refreshAuthToken()
+            } catch (e: Exception) {
+                Log.e(this::class.simpleName, "An exception occurred when checking for session validity.", e)
+            }
+        }
+    }
 
     /**
      * This method will determine if a user is authenticated.
@@ -122,6 +154,7 @@ abstract class RetroForceActivity : ComponentActivity() {
      */
     @Throws
     protected suspend fun refreshAuthToken() {
+        Log.d(this::class.simpleName, "Refreshing auth token...")
         try {
             viewModel.refreshSession(getServer(), getAuthTokenParser())
         } catch (ua: UnauthenticatedException) {
@@ -132,6 +165,8 @@ abstract class RetroForceActivity : ComponentActivity() {
             startLoginActivity()
         } catch (uhe: UnknownHostException) {
             // Unable to reach host. Bad network connectivity or server unavailable.
+            Log.d(this::class.simpleName, "Unable to connect to host to refresh auth token. " +
+                    "Re-authentication is not required at this time.")
         }
     }
 

@@ -5,7 +5,7 @@ import java.io.Serializable
 data class Server(
     val environment: ServerEnvironment,
     val name: String,
-    /** The [endpoint] should end with NO forward slash. */
+    /** The [endpoint] must not end with a forward slash. */
     val endpoint: String,
     val clientId: String,
     val secret: String,
