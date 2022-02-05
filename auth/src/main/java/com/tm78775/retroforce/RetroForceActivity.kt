@@ -68,12 +68,6 @@ abstract class RetroForceActivity : ComponentActivity() {
     }
 
     /**
-     * When this method is invoked, return the server to which you want to connect.
-     * @return The [Server] object configured for use in this build.
-     */
-    abstract fun getServer(): Server
-
-    /**
      * If this is set to true, the [RetroForceActivity] will not navigate automatically
      * to the [LoginActivity] if there is no logged in user. This is useful if the child
      * [ComponentActivity] requires the authentication status, but wants to reserve
@@ -107,7 +101,7 @@ abstract class RetroForceActivity : ComponentActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             Log.d(this::class.simpleName, "Ensuring session is not expired...")
             try {
-                viewModel.refreshUserProfile(getServer())
+                viewModel.refreshUserProfile(RetroConfig.getServer())
             } catch (see: SessionExpiredException) {
                 refreshAuthToken()
             } catch (e: Exception) {
@@ -129,7 +123,7 @@ abstract class RetroForceActivity : ComponentActivity() {
      * auth token locally.
      */
     protected suspend fun logout() {
-        viewModel.logout(getServer())
+        viewModel.logout(RetroConfig.getServer())
         startLoginActivity()
     }
 
@@ -142,7 +136,7 @@ abstract class RetroForceActivity : ComponentActivity() {
                 this@RetroForceActivity,
                 LoginActivity::class.java
             ).apply {
-                putExtra("server", getServer())
+                putExtra("server", RetroConfig.getServer())
                 putExtra("token_parser", getAuthTokenParser())
             }
         )
@@ -156,7 +150,7 @@ abstract class RetroForceActivity : ComponentActivity() {
     protected suspend fun refreshAuthToken() {
         Log.d(this::class.simpleName, "Refreshing auth token...")
         try {
-            viewModel.refreshSession(getServer(), getAuthTokenParser())
+            viewModel.refreshSession(RetroConfig.getServer(), getAuthTokenParser())
         } catch (ua: UnauthenticatedException) {
             // No token was found in the persisted store. Re-authenticate.
             startLoginActivity()
