@@ -2,7 +2,6 @@ package com.tm78775.retroforce
 
 import android.content.Intent
 import android.os.Bundle
-import android.os.PersistableBundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,12 +15,10 @@ import com.tm78775.retroforce.service.RefreshException
 import com.tm78775.retroforce.service.SalesforceCommunityTokenParser
 import com.tm78775.retroforce.service.SessionExpiredException
 import com.tm78775.retroforce.service.UnauthenticatedException
-import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.UnknownHostException
-import javax.inject.Inject
 
 /**
  * Extend this class to enable RetroForce's authentication and session refreshing with Salesforce.
@@ -35,8 +32,17 @@ import javax.inject.Inject
  */
 abstract class RetroForceActivity : ComponentActivity() {
 
-    private val viewModel: AuthViewModel by viewModels()
+    private val viewModel: CommunityAuthViewModel by viewModels()
     private var suppressLogin: Boolean = false
+
+    /**
+     * Helper method to get a [LiveData] object to observe the available auth token when
+     * it is available or has changed.
+     * @return A LiveData object observing the [AuthToken].
+     */
+    protected fun getLiveAuthToken(): LiveData<AuthToken> {
+        return viewModel.liveAuthToken
+    }
 
     // Contract to receive data when launching activity for result.
     private val loginContract = registerForActivityResult(
@@ -50,11 +56,6 @@ abstract class RetroForceActivity : ComponentActivity() {
             }
         }
     }
-
-    /**
-     * Call this to get a [LiveData] object observing the [AuthToken].
-     */
-    fun getLiveAuthToken(): LiveData<AuthToken> = viewModel.liveAuthToken
 
     /**
      * When this method is invoked, return the [AuthTokenParser] necessary for your
@@ -101,11 +102,17 @@ abstract class RetroForceActivity : ComponentActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             Log.d(this::class.simpleName, "Ensuring session is not expired...")
             try {
-                viewModel.refreshUserProfile(RetroConfig.getServer())
+                viewModel.refreshUserProfile()
+                Log.d(this::class.simpleName, "Session is valid. No authentication action required.")
             } catch (see: SessionExpiredException) {
+                Log.d(this::class.simpleName, "Session has expired.")
                 refreshAuthToken()
+            } catch (uhe: UnknownHostException) {
+                Log.e(this::class.simpleName, "Unknown Host Exception: Bad network connectivity " +
+                        "or server unavailable. Re-authentication and session refresh postponed.")
             } catch (e: Exception) {
-                Log.e(this::class.simpleName, "An exception occurred when checking for session validity.", e)
+                // TODO: CRASHLYTICS
+                Log.e(this::class.simpleName, "THIS EXCEPTION IS UNACCOUNTED FOR AND NEEDS TO BE ADDRESSED! SEE ERROR: ${e.localizedMessage}", e)
             }
         }
     }

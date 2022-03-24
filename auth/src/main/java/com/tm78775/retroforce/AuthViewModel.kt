@@ -3,33 +3,30 @@ package com.tm78775.retroforce
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.*
-import com.google.gson.Gson
-import com.google.gson.JsonElement
-import com.google.gson.JsonObject
 import com.tm78775.retroforce.model.*
 import com.tm78775.retroforce.service.*
-import com.tm78775.retroforce.service.RestService
 import com.tm78775.retroforce.service.RetroFactory
 import com.tm78775.retroforce.service.SessionService
 import com.tm78775.retroforce.service.TokenPersistenceService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.lang.IllegalStateException
 import java.lang.StringBuilder
 import java.net.UnknownHostException
 import javax.inject.Inject
 
-class AuthViewModel @Inject constructor(
-    private val app: Application
+abstract class AuthViewModel @Inject constructor(
+    protected val app: Application
 ) : AndroidViewModel(app) {
 
-    private val _authToken = MutableLiveData<AuthToken>()
-    val liveAuthToken: LiveData<AuthToken> = _authToken
+    protected abstract suspend fun getAuthToken(): AuthToken?
+    private val _liveAuthToken = MutableLiveData<AuthToken>()
+    val liveAuthToken: LiveData<AuthToken> = _liveAuthToken
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            TokenPersistenceService.getAuthToken<CommunityAuthToken>(app).also {
-                _authToken.postValue(it)
+            getAuthToken()?.also {
+                RetroConfig.updateToken(it)
+                _liveAuthToken.postValue(it)
             }
         }
     }
@@ -80,7 +77,7 @@ class AuthViewModel @Inject constructor(
     @Suppress("UNCHECKED_CAST")
     @Throws
     suspend fun refreshSession(server: Server, tokenParser: AuthTokenParser) {
-        val token = TokenPersistenceService.getAuthToken<CommunityAuthToken>(app)
+        val token = getAuthToken()
             ?: throw UnauthenticatedException("No auth token was stored. No user is authenticated.")
 
         val authService = RetroFactory.createService(
@@ -99,11 +96,12 @@ class AuthViewModel @Inject constructor(
                 resp.body()?.let { refreshResp ->
                     val refreshedToken = tokenParser.parseRefreshToken(token, refreshResp)
                     TokenPersistenceService.saveAuthToken(app, refreshedToken)
-                    _authToken.postValue(token)
+                    RetroConfig.updateToken(refreshedToken)
                 }
             else if(resp.code() >= 400){
                 TokenPersistenceService.saveAuthToken(app, null)
-                _authToken.postValue(null)
+                _liveAuthToken.postValue(null)
+                RetroConfig.onTokenRevoked()
                 throw RefreshException(
                     "Refreshing the AuthToken resulted in a response " +
                             "of ${resp.code()} and an errorBody of ${resp.errorBody()}."
@@ -121,7 +119,7 @@ class AuthViewModel @Inject constructor(
      * @return True if the library has an authenticated user. Otherwise false.
      */
     suspend fun userIsAuthenticated(): Boolean {
-        return TokenPersistenceService.getAuthToken<CommunityAuthToken>(app) != null
+        return getAuthToken() != null
     }
 
     /**
@@ -131,18 +129,18 @@ class AuthViewModel @Inject constructor(
      */
     suspend fun onLoginSuccess(token: AuthToken) {
         TokenPersistenceService.saveAuthToken(app, token)
-        _authToken.postValue(token)
+        RetroConfig.updateToken(token)
+        _liveAuthToken.postValue(token)
     }
 
     /**
      * Call this method to update the user's profile.
      */
     @Throws
-    suspend fun refreshUserProfile(server: Server) {
-        val token = TokenPersistenceService.getAuthToken<CommunityAuthToken>(app) ?: return
-        val repo = NetworkRepository()
+    suspend fun refreshUserProfile() {
+        val token = RetroConfig.getToken()
         val query = "SELECT FirstName, LastName, Email FROM User WHERE Id = '${token.uid()}'"
-        val u = repo.queryForOne<AuthUser>(query, server, token)
+        RetroForce.query(query, AuthUser::class.java)
     }
 
     /**
@@ -150,7 +148,7 @@ class AuthViewModel @Inject constructor(
      * @param server The server instance the app is using.
      */
     suspend fun logout(server: Server) {
-        val token = TokenPersistenceService.getAuthToken<CommunityAuthToken>(app) ?: return
+        val token = getAuthToken() ?: return
         val authService = RetroFactory.createService(
             getRefreshServer(server.environment),
             SessionService::class.java
@@ -158,7 +156,8 @@ class AuthViewModel @Inject constructor(
 
         authService.logout(token.accessToken)
         TokenPersistenceService.saveAuthToken(app, null)
-        _authToken.postValue(null)
+        _liveAuthToken.postValue(null)
+        RetroConfig.onTokenRevoked()
     }
 
     /**

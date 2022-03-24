@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.ViewGroup
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -16,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
 import com.tm78775.retroforce.AuthViewModel
+import com.tm78775.retroforce.CommunityAuthViewModel
 import com.tm78775.retroforce.R
 import com.tm78775.retroforce.model.AuthTokenParser
 import com.tm78775.retroforce.model.Server
@@ -26,7 +28,7 @@ import kotlinx.coroutines.launch
 
 internal class LoginActivity : ComponentActivity() {
 
-    private val viewModel: AuthViewModel by viewModels()
+    private val viewModel: CommunityAuthViewModel by viewModels()
     private lateinit var loginWebViewClient: LoginWebViewClient
     private lateinit var server: Server
     private lateinit var tokenParser: AuthTokenParser
@@ -59,6 +61,10 @@ internal class LoginActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onBackPressed() {
+        Log.d(this::class.simpleName, "Back is disabled when login screen is presented.")
     }
 
     @SuppressLint("HardwareIds")
