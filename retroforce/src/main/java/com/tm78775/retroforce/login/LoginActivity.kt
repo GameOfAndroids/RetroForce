@@ -10,17 +10,15 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
-import com.tm78775.retroforce.AuthViewModel
-import com.tm78775.retroforce.CommunityAuthViewModel
+import com.tm78775.retroforce.viewmodel.CommunityAuthViewModel
 import com.tm78775.retroforce.R
 import com.tm78775.retroforce.model.AuthTokenParser
-import com.tm78775.retroforce.model.Server
+import com.tm78775.retroforce.model.ConnectedApp
 import com.tm78775.retroforce.theme.RetroForceTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -28,18 +26,20 @@ import kotlinx.coroutines.launch
 
 internal class LoginActivity : ComponentActivity() {
 
-    private val viewModel: CommunityAuthViewModel by viewModels()
+    private val viewModel: CommunityAuthViewModel by lazy {
+        CommunityAuthViewModel(application)
+    }
     private lateinit var loginWebViewClient: LoginWebViewClient
-    private lateinit var server: Server
+    private lateinit var connectedApp: ConnectedApp
     private lateinit var tokenParser: AuthTokenParser
 
     @Suppress("UNCHECKED_CAST")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        server = intent?.extras?.getSerializable("server") as Server
+        connectedApp = intent?.extras?.getSerializable("server") as ConnectedApp
         tokenParser = intent?.extras?.getSerializable("token_parser") as AuthTokenParser
 
-        loginWebViewClient = LoginWebViewClient(server, tokenParser) { parsedToken ->
+        loginWebViewClient = LoginWebViewClient(connectedApp, tokenParser) { parsedToken ->
             lifecycleScope.launch(Dispatchers.IO) {
                 setResult(RESULT_OK, Intent().putExtra("token", parsedToken))
                 lifecycleScope.launch(Dispatchers.Main) {
@@ -56,7 +56,7 @@ internal class LoginActivity : ComponentActivity() {
                 Surface(color = MaterialTheme.colors.background) {
                     WebViewPage(
                         loginWebViewClient,
-                        viewModel.generateAuthEndpoint(server, provideDeviceId())
+                        viewModel.generateAuthEndpoint(connectedApp, provideDeviceId())
                     )
                 }
             }

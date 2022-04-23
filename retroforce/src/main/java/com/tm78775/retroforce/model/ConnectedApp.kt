@@ -2,8 +2,8 @@ package com.tm78775.retroforce.model
 
 import java.io.Serializable
 
-data class Server(
-    val environment: ServerEnvironment,
+data class ConnectedApp(
+    val environment: AppEnvironment,
     val name: String,
     /** The [endpoint] must not end with a forward slash. */
     val endpoint: String,
@@ -18,6 +18,6 @@ data class Server(
     }
 }
 
-enum class ServerEnvironment {
+enum class AppEnvironment {
     Prod, Sandbox
 }

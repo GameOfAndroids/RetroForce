@@ -5,16 +5,13 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.lifecycleScope
 import com.tm78775.retroforce.login.LoginActivity
 import com.tm78775.retroforce.model.*
 import com.tm78775.retroforce.model.AuthTokenParser
-import com.tm78775.retroforce.service.RefreshException
-import com.tm78775.retroforce.service.SalesforceCommunityTokenParser
-import com.tm78775.retroforce.service.SessionExpiredException
-import com.tm78775.retroforce.service.UnauthenticatedException
+import com.tm78775.retroforce.service.*
+import com.tm78775.retroforce.viewmodel.CommunityAuthViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -32,7 +29,9 @@ import java.net.UnknownHostException
  */
 abstract class RetroForceActivity : ComponentActivity() {
 
-    private val viewModel: CommunityAuthViewModel by viewModels()
+    private val viewModel: CommunityAuthViewModel by lazy {
+        CommunityAuthViewModel(application)
+    }
     private var suppressLogin: Boolean = false
 
     /**
@@ -44,6 +43,15 @@ abstract class RetroForceActivity : ComponentActivity() {
         return viewModel.liveAuthToken
     }
 
+    /**
+     * This will be invoked when the Activity has loaded the user's profile. Override
+     * this method to receive a callback when an authenticated user's id is available.
+     * @param uid The id of the authenticated and loaded end-user.
+     */
+    open fun onUserLoaded(uid: String) {
+        Log.d(this::class.simpleName, "The user has been loaded.")
+    }
+
     // Contract to receive data when launching activity for result.
     private val loginContract = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -52,6 +60,7 @@ abstract class RetroForceActivity : ComponentActivity() {
             (it.data?.extras?.getSerializable("token") as? AuthToken)?.also {
                 lifecycleScope.launch(Dispatchers.IO) {
                     viewModel.onLoginSuccess(it)
+                    onUserLoaded(it.uid())
                 }
             }
         }
@@ -84,11 +93,14 @@ abstract class RetroForceActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         lifecycleScope.launch(Dispatchers.IO) {
             delay(1000)
-            if (!userIsAuthenticated() && !suppressLogin) {
-                Log.d(this::class.simpleName, "There is no authenticated user. Navigating to ${LoginActivity::class.simpleName}")
-                startLoginActivity()
-            } else {
+            if(userIsAuthenticated()) {
                 performSessionValidation()
+            } else {
+                Log.d(this::class.simpleName, "There is no authenticated user.")
+                if(!suppressLogin) {
+                    Log.d(this::class.simpleName, "Navigating to ${LoginActivity::class.simpleName}")
+                    startLoginActivity()
+                }
             }
         }
     }
@@ -102,8 +114,13 @@ abstract class RetroForceActivity : ComponentActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             Log.d(this::class.simpleName, "Ensuring session is not expired...")
             try {
-                viewModel.refreshUserProfile()
+                val user: AuthUser? = viewModel.refreshUserProfile()
+                if(user != null)
+                    onUserLoaded(user.id)
                 Log.d(this::class.simpleName, "Session is valid. No authentication action required.")
+            } catch(ate: AuthTokenException) {
+                Log.d(this::class.simpleName, "Auth token not found. Redirecting to authenticate.")
+                startLoginActivity()
             } catch (see: SessionExpiredException) {
                 Log.d(this::class.simpleName, "Session has expired.")
                 refreshAuthToken()

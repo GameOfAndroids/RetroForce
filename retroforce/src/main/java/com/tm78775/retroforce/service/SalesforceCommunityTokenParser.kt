@@ -6,8 +6,8 @@ import java.nio.charset.StandardCharsets
 
 class SalesforceCommunityTokenParser : AuthTokenParser {
 
-    override fun isRedirectUriDetected(server: Server, url: String): Boolean {
-        return url.startsWith(server.redirectUri)
+    override fun isRedirectUriDetected(connectedApp: ConnectedApp, url: String): Boolean {
+        return url.startsWith(connectedApp.redirectUri)
     }
 
     override fun parseAuthToken(url: String): AuthToken {

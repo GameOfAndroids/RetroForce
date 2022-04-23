@@ -1,8 +1,12 @@
-package com.tm78775.retroforce
+package com.tm78775.retroforce.viewmodel
 
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.*
+import com.google.gson.Gson
+import com.google.gson.JsonArray
+import com.tm78775.retroforce.RetroConfig
+import com.tm78775.retroforce.RetroForce
 import com.tm78775.retroforce.model.*
 import com.tm78775.retroforce.service.*
 import com.tm78775.retroforce.service.RetroFactory
@@ -34,39 +38,39 @@ abstract class AuthViewModel @Inject constructor(
     /**
      * Call this method to generate the auth endpoint that the web view should use
      * to authenticate the user with salesforce.
-     * @param server The [Server] we're using.
+     * @param connectedApp The [ConnectedApp] we're using.
      * @param deviceId The id of the user's device.
      * @return A url ready to be fed to a web view.
      */
-    fun generateAuthEndpoint(server: Server, deviceId: String): String {
+    fun generateAuthEndpoint(connectedApp: ConnectedApp, deviceId: String): String {
         return StringBuilder().apply {
-            append(server.endpoint)
+            append(connectedApp.endpoint)
             append(authPath)
             append("?display=touch")
             append("&response_type=token")
-            append("&client_id=${server.clientId}")
+            append("&client_id=${connectedApp.clientId}")
 
-            if(server.scope.isNotEmpty()) {
+            if(connectedApp.scope.isNotEmpty()) {
                 append("&scope=")
-                for (i in server.scope.indices) {
-                    append(server.scope[i])
+                for (i in connectedApp.scope.indices) {
+                    append(connectedApp.scope[i])
 
                     try {
-                        if (i < server.scope.size - 1)
+                        if (i < connectedApp.scope.size - 1)
                             append("%20")
                     } catch (e: Exception) {
                         Log.e(this.toString(), "Scope parse error.", e)
                     }
                 }
             }
-            append("&redirect_uri=${server.redirectUri}")
+            append("&redirect_uri=${connectedApp.redirectUri}")
             append("&device_id=$deviceId")
         }.toString()
     }
 
     /**
      * Call this method to refresh the end user's session.
-     * @param server The [Server] environment.
+     * @param connectedApp The [ConnectedApp] environment.
      * @throws UnknownHostException if the endpoint cannot be reached due to network
      * connectivity or server is unavailable.
      * @throws RefreshException in the event that a refresh attempt did not return
@@ -76,19 +80,19 @@ abstract class AuthViewModel @Inject constructor(
      */
     @Suppress("UNCHECKED_CAST")
     @Throws
-    suspend fun refreshSession(server: Server, tokenParser: AuthTokenParser) {
+    suspend fun refreshSession(connectedApp: ConnectedApp, tokenParser: AuthTokenParser) {
         val token = getAuthToken()
             ?: throw UnauthenticatedException("No auth token was stored. No user is authenticated.")
 
         val authService = RetroFactory.createService(
-            getRefreshServer(server.environment),
+            getRefreshServer(connectedApp.environment),
             SessionService::class.java
         )
 
         try {
             val resp = authService.refreshSession(
-                clientId = server.clientId,
-                secret = server.secret,
+                clientId = connectedApp.clientId,
+                secret = connectedApp.secret,
                 refreshToken = token.refreshToken
             )
 
@@ -109,7 +113,7 @@ abstract class AuthViewModel @Inject constructor(
             }
         } catch (uhe: UnknownHostException) {
             Log.d(this.toString(), "RetroForce is unable to reach the host " +
-                    "at ${getRefreshServer(server.environment)}. Do you have a data connection?")
+                    "at ${getRefreshServer(connectedApp.environment)}. Do you have a data connection?")
             throw uhe
         }
     }
@@ -137,20 +141,23 @@ abstract class AuthViewModel @Inject constructor(
      * Call this method to update the user's profile.
      */
     @Throws
-    suspend fun refreshUserProfile() {
+    suspend fun refreshUserProfile(): AuthUser? {
         val token = RetroConfig.getToken()
-        val query = "SELECT FirstName, LastName, Email FROM User WHERE Id = '${token.uid()}'"
-        RetroForce.query(query, AuthUser::class.java)
+        val query = "SELECT Id, FirstName, LastName, Email FROM User WHERE Id = '${token.uid()}'"
+        val json: JsonArray? = RetroForce.query(query)
+        val u = Gson().fromJson(json?.first(), AuthUser::class.java)
+        Log.d(this::class.java.simpleName, "User: ${u.firstName} ${u.lastName}")
+        return u
     }
 
     /**
      * Call this method to log the user out.
-     * @param server The server instance the app is using.
+     * @param connectedApp The server instance the app is using.
      */
-    suspend fun logout(server: Server) {
+    suspend fun logout(connectedApp: ConnectedApp) {
         val token = getAuthToken() ?: return
         val authService = RetroFactory.createService(
-            getRefreshServer(server.environment),
+            getRefreshServer(connectedApp.environment),
             SessionService::class.java
         )
 
@@ -162,13 +169,13 @@ abstract class AuthViewModel @Inject constructor(
 
     /**
      * Helper method to get the token refresh endpoint.
-     * @param environment The [ServerEnvironment] the user is working on.
+     * @param environment The [AppEnvironment] the user is working on.
      * @return The endpoint in String format.
      */
-    private fun getRefreshServer(environment: ServerEnvironment): String {
+    private fun getRefreshServer(environment: AppEnvironment): String {
         return when(environment) {
-            ServerEnvironment.Prod -> prodAuthEndpoint
-            ServerEnvironment.Sandbox -> sandboxAuthEndpoint
+            AppEnvironment.Prod -> prodAuthEndpoint
+            AppEnvironment.Sandbox -> sandboxAuthEndpoint
         }
     }
 

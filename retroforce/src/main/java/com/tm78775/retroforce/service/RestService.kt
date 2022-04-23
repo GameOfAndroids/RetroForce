@@ -1,6 +1,6 @@
 package com.tm78775.retroforce.service
 
-import com.tm78775.retroforce.model.SFObject
+import com.tm78775.retroforce.model.Fetchable
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -29,14 +29,14 @@ internal interface RestService {
     @POST("/services/data/${ApiConstants.apiVersion}/sobjects/{n}/")
     suspend fun create(
         @Path("n") objectName: String,
-        @Body obj: SFObject
+        @Body obj: Fetchable
     ): Response<CreateResponse>
 
     @PATCH("/services/data/${ApiConstants.apiVersion}/sobjects/{n}/{id}")
     suspend fun update(
         @Path("n") objectName: String,
         @Path("id") sfid: String,
-        obj: SFObject
+        obj: Fetchable
     ): Response<Void>
 
     @DELETE("/services/data/${ApiConstants.apiVersion}/sobjects/{n}/{id}")

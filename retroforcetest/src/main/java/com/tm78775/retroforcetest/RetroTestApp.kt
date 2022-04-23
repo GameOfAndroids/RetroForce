@@ -12,7 +12,9 @@ class RetroTestApp : Application() {
 
     private fun initRetroForce() {
         Log.d(this.javaClass.simpleName, "Initializing RetroForce!")
-        TODO("initRetroForce has not been implemented")
+//        RetroConfig.configureServer(
+//
+//        )
     }
 
 }

@@ -6,3 +6,5 @@ class SessionExpiredException(val msg: String) : Exception()
 class ServerUnsuccessfulException(val msg: String) : Exception()
 class ServerNotConfigured(val msg: String) : Exception()
 class AuthTokenException(val msg: String) : Exception()
+class MissingSfidException(val msg: String = "The object does not have the " +
+        "required sfid for this operation.") : Exception()

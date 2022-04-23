@@ -4,10 +4,10 @@ import android.graphics.Bitmap
 import android.webkit.*
 import com.tm78775.retroforce.model.AuthToken
 import com.tm78775.retroforce.model.AuthTokenParser
-import com.tm78775.retroforce.model.Server
+import com.tm78775.retroforce.model.ConnectedApp
 
 internal class LoginWebViewClient(
-    private val server: Server,
+    private val connectedApp: ConnectedApp,
     private val tokenParser: AuthTokenParser,
     private val onTokenParsed: (AuthToken) -> Unit
 ) : WebViewClient() {
@@ -16,7 +16,7 @@ internal class LoginWebViewClient(
         super.onPageStarted(view, url, favicon)
 
         url?.let {
-            if(tokenParser.isRedirectUriDetected(server, it)) {
+            if(tokenParser.isRedirectUriDetected(connectedApp, it)) {
                 val token = tokenParser.parseAuthToken(it)
                 onTokenParsed(token)
                 view?.stopLoading()

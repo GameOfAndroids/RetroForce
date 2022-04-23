@@ -1,4 +1,4 @@
-package com.tm78775.retroforce
+package com.tm78775.retroforce.viewmodel
 
 import android.app.Application
 import com.tm78775.retroforce.model.AuthToken

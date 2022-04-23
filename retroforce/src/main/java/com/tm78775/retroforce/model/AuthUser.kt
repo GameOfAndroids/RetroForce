@@ -4,6 +4,7 @@ import com.google.gson.annotations.SerializedName
 
 data class AuthUser(
     @SerializedName("attributes") val attributes: Attributes,
+    @SerializedName("Id") val id: String,
     @SerializedName("FirstName") val firstName: String?,
     @SerializedName("LastName") val lastName: String,
     @SerializedName("Email") val email: String
